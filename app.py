@@ -723,7 +723,7 @@ def page_exam():
           <div style='font-family:Syne,sans-serif;font-size:1.05rem;font-weight:800;color:#F0EDE6;'>
             Code<span style='color:#E86C2C;'>Round</span>
           </div>
-          <div style='font-size:0.78rem;color:#A8A39C;margin-top:2px;'>👤 {st.session_state.user}</div>
+          <div style='font-size:1.05rem;color:#A8A39C;margin-top:2px;'>👤 {st.session_state.user}</div>
           {tmpl_badge}
         </div>""", unsafe_allow_html=True)
 
