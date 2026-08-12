@@ -1143,6 +1143,38 @@ def page_admin():
                 else:
                     st.info("No candidates yet. Create one on the left.")
 
+        # ── RESET PASSWORD ────────────────────────────────────────────────────
+        if db.get_all_candidates(include_deactivated=True):
+            with st.expander("🔑 Reset Candidate Password", expanded=False):
+                all_cands_rp = db.get_all_candidates(include_deactivated=True)
+                rp_col1, rp_col2 = st.columns([1, 1], gap="medium")
+                with rp_col1:
+                    rp_user = st.selectbox(
+                        "Select candidate",
+                        [c["username"] for c in all_cands_rp],
+                        key="rp_user_sel"
+                    )
+                with rp_col2:
+                    rp_new  = st.text_input("New Password", type="password", key="rp_new",
+                                             placeholder="Min 6 characters")
+                    rp_conf = st.text_input("Confirm Password", type="password", key="rp_conf",
+                                             placeholder="Re-enter password")
+                rp_btn_col, rp_msg_col = st.columns([1, 2])
+                with rp_btn_col:
+                    if st.button("Reset Password", key="rp_btn", type="primary", width="stretch"):
+                        if not rp_new or not rp_conf:
+                            st.error("Both password fields are required")
+                        elif len(rp_new) < 6:
+                            st.error("Password must be at least 6 characters")
+                        elif rp_new != rp_conf:
+                            st.error("Passwords do not match")
+                        else:
+                            ok = db.reset_candidate_password(rp_user, rp_new)
+                            if ok:
+                                st.success(f"✅ Password reset for **{rp_user}**")
+                            else:
+                                st.error("Reset failed — candidate not found")
+
         # ── QUICK STATS ───────────────────────────────────────────────────────
         with c3:
             with st.container(border=True):

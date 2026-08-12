@@ -142,7 +142,18 @@ def init_db():
     _seed_questions()
     _migrate_strip_interviewer_content()
     _migrate_add_templates()
+    _migrate_fix_candidate_status()
 
+
+
+def _migrate_fix_candidate_status():
+    """Fix any candidates with NULL or empty status — set to 'active'."""
+    conn = get_conn()
+    conn.execute(
+        "UPDATE candidates SET status='active' WHERE is_active=1 AND (status IS NULL OR TRIM(status)='')"
+    )
+    conn.commit()
+    conn.close()
 
 
 def _migrate_add_templates():
@@ -628,7 +639,7 @@ Output: [1, 2, 3, 4, 5, 6, 7, 8]
 
         # ── Python 1: Build latest customer state from CDC events ─────────────
         {
-            "title": "CDC: Latest Customer State",
+            "title": " Build latest customer state from CDC events",
             "description": """**Difficulty:** Hard · **Time:** 20 min
 
 **Problem:** You are given a list of dicts representing change events from a vendor CDC feed.
@@ -660,8 +671,8 @@ def build_latest_customer_state(events) -> list[dict]:
 
 **Expected output** (2 customers — c2 is deleted):
 ```
-c1: email=a@x.com, status=inactive
-c3: email=c_new@x.com, status=active
+[{'customer_id': 'c1', 'email': 'a@x.com', 'status': 'inactive'},
+ {'customer_id': 'c3', 'email': 'c_new@x.com', 'status': 'active'}]
 ```""",
             "category": "Python",
             "difficulty": "Hard",
@@ -737,8 +748,8 @@ def canonicalize_entities(records: list[dict]) -> list[dict]:
 
 **Expected output:**
 ```
-e1: name=Acme Incorporated, status=active, risk_score=72, source_count=2
-e2: name=Beta LLC, status=active, risk_score=91, source_count=1
+[{ 'entity_id': 'e1' 'name':'Acme Incorporated', 'status':'active', 'risk_score':72, 'source_count'=2},
+{'entity_id':e2 'name':'Beta LLC', 'status':'active', 'risk_score':91, 'source_count':2},]
 ```""",
             "category": "Python",
             "difficulty": "Hard",
@@ -786,7 +797,7 @@ e2: name=Beta LLC, status=active, risk_score=91, source_count=1
 
         # ── Python 3: Build canonical vendor file load plan ───────────────────
         {
-            "title": "Vendor File Load Plan",
+            "title": "Build a canonical vendor file load plan",
             "description": """**Difficulty:** Hard · **Time:** 15 min
 
 **Problem:** You are given file delivery records from a vendor. Files can be redelivered, duplicated, or conflict.
@@ -794,9 +805,9 @@ e2: name=Beta LLC, status=active, risk_score=91, source_count=1
 ```python
 files = [
   {"vendor_file_id":"f1","arrived_ts":"2026-05-01T08:00:00","partition_date":"2026-04-30","checksum":"aaa","size_bytes":100},
-  {"vendor_file_id":"f1","arrived_ts":"2026-05-01T08:05:00","partition_date":"2026-04-30","checksum":"aaa","size_bytes":100},  # benign redeliver
+  {"vendor_file_id":"f1","arrived_ts":"2026-05-01T08:05:00","partition_date":"2026-04-30","checksum":"aaa","size_bytes":100},  
   {"vendor_file_id":"f2","arrived_ts":"2026-05-01T08:10:00","partition_date":"2026-04-30","checksum":"bbb","size_bytes":200},
-  {"vendor_file_id":"f2","arrived_ts":"2026-05-01T08:20:00","partition_date":"2026-04-30","checksum":"ccc","size_bytes":210},  # conflict!
+  {"vendor_file_id":"f2","arrived_ts":"2026-05-01T08:20:00","partition_date":"2026-04-30","checksum":"ccc","size_bytes":210},  
   {"vendor_file_id":"f3","arrived_ts":"2026-05-01T09:00:00","partition_date":"2026-05-01","checksum":"ddd","size_bytes":150},
 ]
 ```
@@ -814,11 +825,23 @@ def build_load_plan(files: list[dict]) -> dict:
 
 **Expected output structure:**
 ```python
-{
-  "files_to_load": [f1_latest, f2_latest, f3],
-  "conflicts": ["f2"],
-  "bytes_by_partition": {"2026-04-30": 410, "2026-05-01": 150}
-}
+{'files_to_load': [{'vendor_file_id': 'f1',
+   'arrived_ts': '2026-05-01T08:05:00',
+   'partition_date': '2026-04-30',
+   'checksum': 'aaa',
+   'size_bytes': 100},
+  {'vendor_file_id': 'f2',
+   'arrived_ts': '2026-05-01T08:20:00',
+   'partition_date': '2026-04-30',
+   'checksum': 'ccc',
+   'size_bytes': 210},
+  {'vendor_file_id': 'f3',
+   'arrived_ts': '2026-05-01T09:00:00',
+   'partition_date': '2026-05-01',
+   'checksum': 'ddd',
+   'size_bytes': 150}],
+ 'conflicts': ['f2'],
+ 'bytes_by_partition': {'2026-04-30': 310, '2026-05-01': 150}}
 ```""",
             "category": "Python",
             "difficulty": "Hard",
@@ -852,7 +875,7 @@ def build_load_plan(files: list[dict]) -> dict:
 
         # ── SQL 1: Current subscription state from append-only events ─────────
         {
-            "title": "Current Subscription State",
+            "title": "Current subscription state from append-only events",
             "description": """**Difficulty:** Hard · **Time:** 15 min
 
 **Problem:** You have an append-only events table:
@@ -886,7 +909,7 @@ subscription_events(
 account_id | plan_id     | event_ts            | event_type | amount
 -----------+-------------+---------------------+------------+-------
 a1         | plan_basic  | 2026-01-01T10:00:00 | START      | 9.99
-a1         | plan_basic  | 2026-01-01T10:00:00 | START      | 9.99   ← duplicate
+a1         | plan_basic  | 2026-01-01T10:00:00 | START      | 9.99   
 a1         | plan_pro    | 2026-02-01T10:00:00 | CHANGE     | 19.99
 a2         | plan_basic  | 2026-01-15T08:00:00 | START      | 9.99
 a2         | plan_basic  | 2026-03-01T09:00:00 | CANCEL     | 9.99
@@ -975,7 +998,7 @@ kyc_decisions:                                      kyc_documents:
 user_id | decision_ts         | decision       | reviewer_id   user_id | document_id | doc_type
 --------+---------------------+----------------+------------   --------+-------------+---------
 u1      | 2026-03-01T10:00:00 | approved       | rev1          u1      | doc1        | passport
-u1      | 2026-03-01T10:00:00 | denied         | rev2   ← tie  u1      | doc2        | utility_bill
+u1      | 2026-03-01T10:00:00 | denied         | rev2          u1      | doc2        | utility_bill
 u2      | 2026-03-02T09:00:00 | manual_review  | rev3          u2      | doc3        | passport
 u3      | 2026-03-03T11:00:00 | approved       | rev4          u3      | doc4        | passport
                                                                u3      | doc5        | bank_statement
@@ -1127,7 +1150,7 @@ ORDER BY processor, payment_date;"""
 
         # ── SQL Debug 1: Fix broken daily orders model ────────────────────────
         {
-            "title": "Debug: Broken Daily Orders Model",
+            "title": "Debug: Fix Broken Daily Orders Model",
             "description": """**Difficulty:** Medium · **Time:** 12 min
 
 **You are given:**
@@ -1219,7 +1242,7 @@ ORDER BY customer_id;"""
 
         # ── SQL Debug 2: Fix broken latest-status query ───────────────────────
         {
-            "title": "Debug: Broken Latest Status Query",
+            "title": "Debug: Fix Broken Latest Status Query",
             "description": """**Difficulty:** Medium · **Time:** 10 min
 
 **You have:**
@@ -1335,8 +1358,13 @@ def get_candidate_question_config(candidate_id):
 def verify_candidate(username, password):
     conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM candidates WHERE username=? AND password_hash=? AND is_active=1 AND COALESCE(status,'active')='active'",
-              (username, hash_password(password)))
+    # Use NULLIF to treat empty string same as NULL, then COALESCE
+    c.execute(
+        "SELECT * FROM candidates "
+        "WHERE username=? AND password_hash=? AND is_active=1 "
+        "AND COALESCE(NULLIF(status,''),'active')='active'",
+        (username, hash_password(password))
+    )
     result = c.fetchone()
     conn.close()
     return dict(result) if result else None
@@ -1357,7 +1385,8 @@ def create_candidate(username, password, sql_count=None, python_count=None, pysp
     c = conn.cursor()
     try:
         c.execute(
-            "INSERT INTO candidates (username, password_hash, sql_count, python_count, pyspark_count) VALUES (?,?,?,?,?)",
+            "INSERT INTO candidates (username, password_hash, is_active, status, sql_count, python_count, pyspark_count) "
+            "VALUES (?,?,1,'active',?,?,?)",
             (username, hash_password(password), sql_count, python_count, pyspark_count)
         )
         conn.commit()
@@ -1366,6 +1395,18 @@ def create_candidate(username, password, sql_count=None, python_count=None, pysp
     except sqlite3.IntegrityError:
         conn.close()
         return False, "Username already exists"
+
+
+def reset_candidate_password(username, new_password):
+    """Admin resets a candidate's password."""
+    conn = get_conn()
+    affected = conn.execute(
+        "UPDATE candidates SET password_hash=? WHERE username=?",
+        (hash_password(new_password), username)
+    ).rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
 
 
 def deactivate_candidate(username):
