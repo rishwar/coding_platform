@@ -234,25 +234,33 @@ def _question_block(idx: int, sub: dict, detail: dict) -> list:
                      .replace("&", "&amp;")
                      .replace("<", "&lt;")
                      .replace(">", "&gt;"))
-        # Use a Table for the code block (gives us background + border)
-        code_para = Paragraph(
-            safe_code.replace("\n", "<br/>").replace(" ", "&nbsp;"),
-            CODE_STYLE
-        )
-        code_table = Table([[code_para]],
-                           colWidths=[W - 40*mm])
-        code_table.setStyle(TableStyle([
-            ("BACKGROUND",    (0,0),(-1,-1), DARK),
-            ("LINEABOVE",     (0,0),(-1,0),  0.5, colors.HexColor("#3D3A35")),
-            ("LINEBELOW",     (0,-1),(-1,-1), 0.5, colors.HexColor("#3D3A35")),
-            ("LINEBEFORE",    (0,0),(0,-1),  3, ORANGE),
-            ("LINEAFTER",     (-1,0),(-1,-1), 0.5, colors.HexColor("#3D3A35")),
-            ("TOPPADDING",    (0,0),(-1,-1), 8),
-            ("BOTTOMPADDING", (0,0),(-1,-1), 8),
-            ("LEFTPADDING",   (0,0),(-1,-1), 10),
-            ("RIGHTPADDING",  (0,0),(-1,-1), 8),
-        ]))
-        story.append(code_table)
+        # Split into page-safe chunks — a single giant Table cell cannot span pages
+        all_lines = safe_code.split("\n")
+        CHUNK = 35   # max lines per table row — always fits in one page
+        chunks = [all_lines[i:i+CHUNK] for i in range(0, len(all_lines), CHUNK)]
+        col_w  = W - 40*mm
+
+        for ci, chunk in enumerate(chunks):
+            chunk_html = "\n".join(chunk).replace("\n","<br/>").replace(" ","&nbsp;")
+            code_para  = Paragraph(chunk_html, CODE_STYLE)
+            top_pad    = 8 if ci == 0 else 3
+            bot_pad    = 8 if ci == len(chunks)-1 else 3
+            ts = [
+                ("BACKGROUND",    (0,0),(-1,-1), DARK),
+                ("LINEBEFORE",    (0,0),(0,-1),  3, ORANGE),
+                ("LINEAFTER",     (-1,0),(-1,-1), 0.5, colors.HexColor("#3D3A35")),
+                ("TOPPADDING",    (0,0),(-1,-1), top_pad),
+                ("BOTTOMPADDING", (0,0),(-1,-1), bot_pad),
+                ("LEFTPADDING",   (0,0),(-1,-1), 10),
+                ("RIGHTPADDING",  (0,0),(-1,-1), 8),
+            ]
+            if ci == 0:
+                ts.append(("LINEABOVE",  (0,0),(-1,0),  0.5, colors.HexColor("#3D3A35")))
+            if ci == len(chunks)-1:
+                ts.append(("LINEBELOW",  (0,-1),(-1,-1), 0.5, colors.HexColor("#3D3A35")))
+            ct = Table([[code_para]], colWidths=[col_w])
+            ct.setStyle(TableStyle(ts))
+            story.append(ct)
 
         if last_ts:
             story.append(Paragraph(f"Last submitted: {last_ts}", SMALL_STYLE))
