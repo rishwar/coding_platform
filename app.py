@@ -685,6 +685,91 @@ def page_login():
         """, unsafe_allow_html=True)
 
 
+# ── Webcam Component ───────────────────────────────────────────────────────────
+def render_live_webcam(candidate_id=None):
+    """Renders live proctoring stream with auto-start and snapshot support."""
+    html_code = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { margin: 0; padding: 0; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .box {
+          background: #1C1917;
+          border-radius: 10px;
+          padding: 8px;
+          border: 1.5px solid #3D3A35;
+          box-sizing: border-box;
+          width: 100%;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 6px;
+        }
+        .rec {
+          font-size: 10px;
+          font-weight: 700;
+          color: #16A34A;
+          letter-spacing: 0.8px;
+          text-transform: uppercase;
+        }
+        .sub { font-size: 10px; color: #A8A39C; }
+        video {
+          width: 100%;
+          height: 120px;
+          border-radius: 6px;
+          object-fit: cover;
+          background: #111;
+          display: block;
+        }
+        #status {
+          font-size: 10px;
+          color: #E86C2C;
+          text-align: center;
+          margin-top: 4px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="box">
+        <div class="header">
+          <span class="rec">● REC PROCTORING</span>
+          <span class="sub">Live Feed</span>
+        </div>
+        <video id="vid" autoplay playsinline muted></video>
+        <div id="status">Connecting camera...</div>
+      </div>
+
+      <script>
+        const video = document.getElementById('vid');
+        const status = document.getElementById('status');
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          navigator.mediaDevices.getUserMedia({ 
+            video: { width: { ideal: 320 }, height: { ideal: 240 } }, 
+            audio: false 
+          })
+          .then(stream => {
+            video.srcObject = stream;
+            video.play();
+            status.style.display = 'none';
+          })
+          .catch(err => {
+            console.error("Camera error:", err);
+            status.innerText = 'Camera permission required';
+            status.style.color = '#DC2626';
+          });
+        } else {
+          status.innerText = 'Camera unsupported';
+          status.style.color = '#DC2626';
+        }
+      </script>
+    </body>
+    </html>
+    """
+    components.html(html_code, height=165)
 # ── EXAM PAGE ──────────────────────────────────────────────────────────────────
 @st.fragment(run_every=1)
 def _render_timer():
@@ -707,238 +792,129 @@ def page_exam():
         st.button("Logout", on_click=logout)
         return
 
-    total     = len(questions)
-    correct   = sum(1 for v in st.session_state.answers.values() if v.get("is_correct"))
-    attempted = sum(1 for v in st.session_state.answers.values() if v.get("result") is not None)
-
-    # ── Sidebar ───────────────────────────────────────────────────────────────
-    with st.sidebar:
-        tmpl_info = st.session_state.get("template_name")
-        tmpl_badge = (f"<div style='font-size:0.68rem;background:#E86C2C;color:#fff;"
-                      f"border-radius:4px;padding:1px 7px;display:inline-block;"
-                      f"margin-top:3px;'>📋 {tmpl_info}</div>") if tmpl_info else (
-                      "<div style='font-size:0.68rem;color:#5C5852;margin-top:2px;'>🎲 Random mode</div>")
-        st.markdown(f"""
-        <div style='padding:12px 4px 6px;'>
-          <div style='font-family:Syne,sans-serif;font-size:1.05rem;font-weight:800;color:#F0EDE6;'>
-            Code<span style='color:#E86C2C;'>Round</span>
-          </div>
-          <div style='font-size:1.05rem;color:#A8A39C;margin-top:2px;'>👤 {st.session_state.user}</div>
-          {tmpl_badge}
-        </div>""", unsafe_allow_html=True)
-
-        # Fragment reruns only the timer every second — no editor flicker
-        _render_timer()
-
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-        pct = int(correct/total*100) if total else 0
-        st.markdown(f"""
-        <div style='margin-bottom:8px;'>
-          <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;'>
-            <span style='font-size:0.7rem;color:#5C5852;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;'>Progress</span>
-            <span style='font-size:0.78rem;color:#E86C2C;font-weight:700;font-family:monospace;'>{correct}/{total} correct</span>
-          </div>
-          <div style='background:#2A2622;border-radius:99px;height:6px;overflow:hidden;'>
-            <div style='background:linear-gradient(90deg,#E86C2C,#F5A623);height:100%;border-radius:99px;width:{pct}%;transition:width 0.4s;'></div>
-          </div>
-          <div style='display:flex;gap:6px;margin-top:8px;'>
-            <div style='flex:1;background:#2A2622;border-radius:8px;padding:7px 4px;text-align:center;'>
-              <div style='font-size:1rem;font-weight:700;color:#16A34A;'>{correct}</div>
-              <div style='font-size:0.6rem;color:#5C5852;text-transform:uppercase;letter-spacing:0.5px;'>Correct</div>
-            </div>
-            <div style='flex:1;background:#2A2622;border-radius:8px;padding:7px 4px;text-align:center;'>
-              <div style='font-size:1rem;font-weight:700;color:#D97706;'>{attempted}</div>
-              <div style='font-size:0.6rem;color:#5C5852;text-transform:uppercase;letter-spacing:0.5px;'>Tried</div>
-            </div>
-            <div style='flex:1;background:#2A2622;border-radius:8px;padding:7px 4px;text-align:center;'>
-              <div style='font-size:1rem;font-weight:700;color:#C8C3BC;'>{total-attempted}</div>
-              <div style='font-size:0.6rem;color:#5C5852;text-transform:uppercase;letter-spacing:0.5px;'>Left</div>
-            </div>
-          </div>
-        </div>""", unsafe_allow_html=True)
-
-        # ── Question Navigator ─────────────────────────────────────────────
-        cat_colors = {'SQL': '#2563EB', 'Python': '#16A34A', 'PySpark': '#EA580C'}
-        cat_bg     = {'SQL': '#1E2D4A', 'Python': '#1A3326', 'PySpark': '#3A1F0D'}
-        cat_icons  = {'SQL': '🗄', 'Python': '🐍', 'PySpark': '⚡'}
-
-        # ── Per-category CSS injected once ──────────────────────────────────
-        st.markdown("""
-        <style>
-        /* Nav question buttons — fully custom styled */
-        [data-testid="stSidebar"] .nav-btn-wrap { margin-bottom: 1px; }
-        [data-testid="stSidebar"] .nav-btn-wrap button {
-            background: transparent !important;
-            border: none !important;
-            border-left: 3px solid transparent !important;
-            border-radius: 0 6px 6px 0 !important;
-            padding: 6px 8px 6px 10px !important;
-            width: 100% !important;
-            text-align: left !important;
-            cursor: pointer !important;
-            transition: all 0.15s !important;
-            min-height: 0 !important;
-            height: auto !important;
-            line-height: 1.2 !important;
-            box-shadow: none !important;
-        }
-        [data-testid="stSidebar"] .nav-btn-wrap button p {
-            font-family: 'Inter', monospace !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            margin: 0 !important;
-            font-size: 0.78rem !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        for cat in ['SQL', 'Python', 'PySpark']:
-            cat_qs = [(i, q) for i, q in enumerate(questions) if q['category'] == cat]
-            if not cat_qs: continue
-            c_color = cat_colors[cat]; c_bg = cat_bg[cat]; c_icon = cat_icons[cat]
-            cat_correct = sum(1 for _,q in cat_qs if st.session_state.answers.get(str(q['id']),{}).get('is_correct'))
-            cat_total   = len(cat_qs)
-
-            # Category header
-            st.markdown(
-                f"<div style='display:flex;align-items:center;justify-content:space-between;"
-                f"background:{c_bg};border-left:3px solid {c_color};"
-                f"border-radius:0 6px 6px 0;padding:6px 10px;margin:10px 0 3px;'>"
-                f"<span style='font-size:0.72rem;font-weight:700;color:{c_color};"
-                f"letter-spacing:1.2px;text-transform:uppercase;'>{c_icon} {cat}</span>"
-                f"<span style='font-size:0.68rem;color:#5C5852;font-weight:600;'>{cat_correct}/{cat_total}</span>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-
-            for i, q in cat_qs:
-                qid          = q['id']
-                ans          = st.session_state.answers.get(str(qid), {})
-                is_correct   = ans.get('is_correct', False)
-                is_attempted = ans.get('result') is not None
-                is_current   = (i == st.session_state.q_index)
-                diff_color   = {'Easy':'#16A34A','Medium':'#D97706','Hard':'#DC2626'}.get(q['difficulty'],'#6B6560')
-                title_short  = q['title'][:20] + ('…' if len(q['title']) > 20 else '')
-
-                if is_correct:     s_icon = '✓'; s_col = '#16A34A'
-                elif is_attempted: s_icon = '✗'; s_col = '#EF4444'
-                else:              s_icon = '·'; s_col = '#5C5852'
-
-                rgba_c = ','.join(str(int(c_color.lstrip('#')[j:j+2],16)) for j in (0,2,4))
-                if is_current:
-                    btn_style = (f"background:rgba({rgba_c},0.18)!important;"
-                                 f"border-left:3px solid {c_color}!important;")
-                    lbl = f"{s_icon} {title_short}  ▶"
-                else:
-                    btn_style = ""
-                    lbl = f"{s_icon} {title_short}"
-
-                # Inject per-button style via unique class
-                st.markdown(
-                    f"<div class='nav-btn-wrap' id='navwrap_{qid}' "                    f"style='{btn_style}border-radius:0 6px 6px 0;margin-bottom:1px;'>",
-                    unsafe_allow_html=True
-                )
-                if st.button(lbl, key=f'nav_{qid}', width='stretch'):
-                    st.session_state.q_index = i; st.rerun()
-                st.markdown(
-                    f"<div style='font-size:0.6rem;color:{diff_color};font-weight:700;"
-                    f"letter-spacing:0.6px;padding:0 0 3px 26px;margin-top:-6px;'"
-                    f">{q['difficulty'].upper()}</div></div>",
-                    unsafe_allow_html=True
-                )
-
-        st.markdown("<hr style='border-color:rgba(255,255,255,0.07);margin:10px 0 6px;'>", unsafe_allow_html=True)
-        if st.button('🚪  End Interview', width='stretch'): logout()
-
-    # ── Main ──────────────────────────────────────────────────────────────────
+    total = len(questions)
     idx = st.session_state.q_index
-    q   = questions[idx]; qid = q["id"]; qid_key = str(qid)
-    cat = q["category"]; diff = q["difficulty"]
+    q = questions[idx]
+    qid = q["id"]
+    qid_key = str(qid)
+    cat = q["category"]
+    diff = q["difficulty"]
 
-    cat_badge = {"SQL":"cr-badge cr-badge-sql","Python":"cr-badge cr-badge-python","PySpark":"cr-badge cr-badge-pyspark"}.get(cat,"cr-badge cr-badge-sql")
-    diff_cls  = {"Easy":"cr-badge cr-badge-easy","Medium":"cr-badge cr-badge-medium","Hard":"cr-badge cr-badge-hard"}.get(diff, "cr-badge")
-    cat_icon  = {"SQL":"🗄️","Python":"🐍","PySpark":"⚡"}.get(cat,"📝")
+    # ── Compact Sidebar ───────────────────────────────────────────────────────
+    with st.sidebar:
+        # Live Webcam Feed Tile
+        st.markdown("<p class='cr-section-title' style='margin-bottom:6px;'>📷 Candidate Feed</p>", unsafe_allow_html=True)
+        render_live_webcam(st.session_state.candidate_id)
+        
+        st.markdown(f"""
+        <div style='padding:6px 0;'>
+          <div style='font-size:1.15rem; font-weight:700; color:#F0EDE6;'>👤 {st.session_state.user}</div>
+        </div>""", unsafe_allow_html=True)
 
-    # Top header bar
-    dark_cat_cls  = {"SQL":"cr-badge cr-badge-dark-sql","Python":"cr-badge cr-badge-dark-python","PySpark":"cr-badge cr-badge-dark-pyspark"}.get(cat,"cr-badge")
-    dark_diff_cls = {"Easy":"cr-badge cr-badge-dark-easy","Medium":"cr-badge cr-badge-dark-medium","Hard":"cr-badge cr-badge-dark-hard"}.get(diff,"cr-badge")
+        _render_timer()
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+        # Compact summary stats
+        correct = sum(1 for v in st.session_state.answers.values() if v.get("is_correct"))
+        attempted = sum(1 for v in st.session_state.answers.values() if v.get("result") is not None)
+        
+        st.markdown(f"""
+        <div style='display:flex; gap:4px; margin-bottom:12px;'>
+          <div style='flex:1; background:#2A2622; border-radius:6px; padding:4px; text-align:center;'>
+            <div style='font-size:0.9rem; font-weight:700; color:#16A34A;'>{correct}</div>
+            <div style='font-size:0.55rem; color:#5C5852; text-transform:uppercase;'>Solved</div>
+          </div>
+          <div style='flex:1; background:#2A2622; border-radius:6px; padding:4px; text-align:center;'>
+            <div style='font-size:0.9rem; font-weight:700; color:#D97706;'>{attempted}</div>
+            <div style='font-size:0.55rem; color:#5C5852; text-transform:uppercase;'>Tried</div>
+          </div>
+          <div style='flex:1; background:#2A2622; border-radius:6px; padding:4px; text-align:center;'>
+            <div style='font-size:0.9rem; font-weight:700; color:#C8C3BC;'>{total - attempted}</div>
+            <div style='font-size:0.55rem; color:#5C5852; text-transform:uppercase;'>Left</div>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+        st.markdown("<hr style='border-color:rgba(255,255,255,0.07); margin:10px 0;'>", unsafe_allow_html=True)
+        if st.button('🚪 End Interview', width='stretch'):
+            logout()
+
+    # ── Top Navigation Bar with Question Tabs ──────────────────────────────────
+    q_cols = st.columns(min(total, 10))
+    for i, col in enumerate(q_cols):
+        q_item = questions[i]
+        ans = st.session_state.answers.get(str(q_item["id"]), {})
+        if ans.get("is_correct"):
+            mark = "✓"
+        elif ans.get("result") is not None:
+            mark = "✗"
+        else:
+            mark = f"Q{i+1}"
+
+        btn_type = "primary" if i == idx else "secondary"
+        if col.button(f"{mark} ({q_item['category'][:2]})", key=f"top_q_{i}", type=btn_type, width='stretch'):
+            st.session_state.q_index = i
+            st.rerun()
+
+    # Question Banner
+    cat_icon = {"SQL": "🗄️", "Python": "🐍", "PySpark": "⚡"}.get(cat, "📝")
+    dark_cat_cls = {"SQL": "cr-badge-dark-sql", "Python": "cr-badge-dark-python", "PySpark": "cr-badge-dark-pyspark"}.get(cat, "cr-badge")
+    dark_diff_cls = {"Easy": "cr-badge-dark-easy", "Medium": "cr-badge-dark-medium", "Hard": "cr-badge-dark-hard"}.get(diff, "cr-badge")
+    
     st.markdown(f"""
-    <div style='background:#1C1917;border-radius:14px;padding:16px 24px;
-                display:flex;align-items:center;gap:0;margin-bottom:14px;'>
-      <!-- Left meta -->
-      <div style='display:flex;align-items:center;gap:10px;flex-shrink:0;margin-right:18px;'>
-        <span style='background:rgba(255,255,255,0.07);border-radius:6px;
-                     padding:4px 10px;font-size:0.75rem;font-weight:700;
-                     color:#A8A39C;letter-spacing:0.5px;white-space:nowrap;'>
-          Q{idx+1} / {total}
-        </span>
-        <span class='{dark_cat_cls}' style='font-size:0.72rem;padding:4px 11px;'>
-          {cat_icon} {cat}
-        </span>
-        <span class='{dark_diff_cls}' style='font-size:0.72rem;padding:4px 11px;font-weight:800;letter-spacing:0.8px;'>
-          {diff.upper()}
-        </span>
-      </div>
-      <!-- Title -->
-      <div style='font-family:Syne,sans-serif;font-size:1.15rem;font-weight:700;
-                  color:#F0EDE6;flex:1;line-height:1.3;'>
-        {q["title"]}
-      </div>
+    <div style='background:#1C1917; border-radius:10px; padding:10px 18px; display:flex; align-items:center; gap:12px; margin:10px 0 14px;'>
+      <span class='{dark_cat_cls}' style='font-size:0.75rem;'>{cat_icon} {cat}</span>
+      <span class='{dark_diff_cls}' style='font-size:0.75rem; font-weight:800;'>{diff.upper()}</span>
+      <span style='font-family:Syne, sans-serif; font-size:1.05rem; font-weight:700; color:#F0EDE6;'>{q["title"]}</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # Prev / Next navigation
-    n1, _mid, n3 = st.columns([1, 14, 1])
-    with n1:
-        if idx > 0 and st.button("← Prev", key="prev"): st.session_state.q_index -= 1; st.rerun()
-    with n3:
-        if idx < total-1 and st.button("Next →", key="next"): st.session_state.q_index += 1; st.rerun()
+    # ── 2-Column Split: 38% Problem, 62% Editor ───────────────────────────────
+    left, right = st.columns([3.8, 6.2], gap="medium")
 
-    left, right = st.columns([1, 1], gap="large")
-
-    # ── Problem ───────────────────────────────────────────────────────────────
+    # ── Problem Statement Container (Fixed Scrollable Height) ──────────────────
     with left:
         st.markdown("<p class='cr-section-title'>📋 Problem Statement</p>", unsafe_allow_html=True)
-        # Use CSS to style the native st.container — avoids split open/close div bug
         st.markdown("""
         <style>
-        div[data-testid='stVerticalBlockBorderWrapper'] {
-            background: #FAFAF8 !important;
-            border: 1.5px solid #E8E4DC !important;
-            border-radius: 16px !important;
-            padding: 8px 12px !important;
+        .problem-container {
+            background: #FAFAF8;
+            border: 1.5px solid #E8E4DC;
+            border-radius: 10px;
+            padding: 16px;
+            height: 600px;
+            overflow-y: auto;
         }
         </style>
         """, unsafe_allow_html=True)
+        
         with st.container(border=True):
             st.markdown(q["description"])
 
-    # ── Editor ────────────────────────────────────────────────────────────────
+    # ── Editor & Results Console ──────────────────────────────────────────────
     with right:
         st.markdown("<p class='cr-section-title'>✏️ Your Solution</p>", unsafe_allow_html=True)
 
-        # Pre-seed ace editor store from restored answers (re-login recovery)
+        # Pre-seed ace store
         store_key = f"ace_store_{qid_key}"
         if store_key not in st.session_state:
             saved = st.session_state.answers.get(qid_key, {}).get("code", "")
             if saved:
                 st.session_state[store_key] = saved
 
-        current_code = code_editor(language=cat, qid_key=qid_key, height=360)
+        # Editor height expanded to 520px
+        current_code = code_editor(language=cat, qid_key=qid_key, height=520)
 
-        # Sync editor value into answers dict
         if isinstance(current_code, str):
             if qid_key not in st.session_state.answers:
                 st.session_state.answers[qid_key] = {}
             st.session_state.answers[qid_key]["code"] = current_code
 
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        # Action Buttons
         b1, b2, b3 = st.columns([3, 1.2, 1])
         with b1:
-            run_clicked = st.button("▶  Run Code", type="primary", width='stretch', key=f"run_{qid}")
+            run_clicked = st.button("▶ Run Code", type="primary", width='stretch', key=f"run_{qid}")
         with b2:
-            if st.button("🗑  Clear", width='stretch', key=f"clear_{qid}"):
+            if st.button("🗑 Clear", width='stretch', key=f"clear_{qid}"):
                 st.session_state.answers[qid_key] = {"code": ""}
                 st.session_state[f"ace_store_{qid_key}"] = ""
                 wk = f"ace_{qid_key}"
@@ -949,14 +925,11 @@ def page_exam():
             if st.button("💡 Hint", width='stretch', key=f"hint_{qid}"):
                 st.session_state[f"show_hint_{qid_key}"] = not st.session_state.get(f"show_hint_{qid_key}", False)
 
-        # Hint shown OUTSIDE narrow column — full width
         if st.session_state.get(f"show_hint_{qid_key}", False):
-            if cat == "SQL":
-                hint_text = "💡 Think about GROUP BY + HAVING, or window functions like DENSE_RANK() and ROW_NUMBER(). Use CTEs to deduplicate before selecting."
-            else:
-                hint_text = "💡 Try enumerate(), zip(), collections.defaultdict(), or a two-pointer approach. Think about time complexity before coding."
-            st.markdown(f"<div class='cr-hint-box'><i class='bi bi-lightbulb-fill me-2'></i>{hint_text}</div>", unsafe_allow_html=True)
+            hint_text = "💡 Think about CTEs, window functions, or standard library utilities like collections.defaultdict."
+            st.markdown(f"<div class='cr-hint-box'>{hint_text}</div>", unsafe_allow_html=True)
 
+        # Execution logic
         if run_clicked:
             code_to_run = (
                 st.session_state.get(f"ace_{qid_key}")
@@ -964,45 +937,43 @@ def page_exam():
                 or st.session_state.answers.get(qid_key, {}).get("code", "")
                 or ""
             )
-            if not isinstance(code_to_run, str): code_to_run = ""
             if not code_to_run.strip():
                 st.warning("Write your solution first!")
             else:
-                with st.spinner("⚙️ Executing…"):
+                with st.spinner("⚙️ Executing..."):
                     if cat == "SQL":
-                        result = executor.execute_sql_code(code_to_run, q.get("test_input",""), q["expected_output"])
+                        result = executor.execute_sql_code(code_to_run, q.get("test_input", ""), q["expected_output"])
                     else:
-                        result = executor.execute_python_code(code_to_run, q.get("test_input",""), q["expected_output"])
+                        result = executor.execute_python_code(code_to_run, q.get("test_input", ""), q["expected_output"])
+                
                 st.session_state.answers[qid_key].update(result=result, is_correct=result["is_correct"])
                 db.save_submission(st.session_state.candidate_id, qid, code_to_run, result["is_correct"])
                 st.rerun()
 
+        # Output / Results Panel
         prev = st.session_state.answers.get(qid_key, {}).get("result")
         if prev is not None:
-            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
             if prev["is_correct"]:
                 st.markdown("""<div class='cr-alert cr-alert-success'>
-                  <span style='font-size:1.4rem;'>✅</span>
-                  <div><div>Correct! Well done.</div>
-                  <div style='font-size:0.8rem;font-weight:400;opacity:0.8;margin-top:2px;'>Your solution produces the expected output.</div></div>
+                  <span style='font-size:1.2rem;'>✅</span>
+                  <div><b>Correct! Well done.</b> Solution passed expected criteria.</div>
                 </div>""", unsafe_allow_html=True)
             else:
                 st.markdown("""<div class='cr-alert cr-alert-danger'>
-                  <span style='font-size:1.4rem;'>❌</span>
-                  <div><div>Not quite — try again</div>
-                  <div style='font-size:0.8rem;font-weight:400;opacity:0.8;margin-top:2px;'>Check your logic and edge cases.</div></div>
+                  <span style='font-size:1.2rem;'>❌</span>
+                  <div><b>Incorrect output.</b> Review your logic and edge cases.</div>
                 </div>""", unsafe_allow_html=True)
 
             if prev.get("error"):
-                with st.expander("🔴 Error details"):
+                with st.expander("🔴 Error details", expanded=True):
                     st.code(prev["error"], language="text")
 
             if prev.get("df_data") and prev["df_data"]["rows"]:
-                st.markdown("<p class='cr-section-title' style='margin-top:12px;'>Query Result</p>", unsafe_allow_html=True)
+                st.markdown("<p class='cr-section-title' style='margin-top:8px;'>Query Result</p>", unsafe_allow_html=True)
                 df = pd.DataFrame(prev["df_data"]["rows"], columns=prev["df_data"]["columns"])
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.dataframe(df, width='stretch', hide_index=True)
             elif prev.get("output") and not prev.get("df_data"):
-                st.markdown("<p class='cr-section-title' style='margin-top:12px;'>Output</p>", unsafe_allow_html=True)
+                st.markdown("<p class='cr-section-title' style='margin-top:8px;'>Output</p>", unsafe_allow_html=True)
                 st.code(prev["output"], language="text")
 
 

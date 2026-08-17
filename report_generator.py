@@ -4,7 +4,8 @@ Generates a professional candidate assessment report using ReportLab.
 """
 import io
 from datetime import datetime
-
+import base64
+from reportlab.platypus import Image as RLImage
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -15,6 +16,7 @@ from reportlab.platypus import (
     HRFlowable, KeepTogether, PageBreak
 )
 from reportlab.platypus.flowables import Flowable
+
 
 
 # ── Brand colours ─────────────────────────────────────────────────────────────
@@ -300,9 +302,9 @@ def generate_candidate_report(candidate: dict, detail: dict) -> bytes:
     story   = []
 
     # ── Cover section ─────────────────────────────────────────────────────────
-    story.append(Spacer(1, 8*mm))
+    story.append(Spacer(1, 4*mm))
 
-    # Candidate info card
+    # ── Candidate info card ───────────────────────────────────────────────────
     status     = candidate.get("status", "active").upper()
     status_clr = GREEN if status == "ACTIVE" else RED
     created    = candidate.get("created_at", "")[:10]
@@ -314,15 +316,17 @@ def generate_candidate_report(candidate: dict, detail: dict) -> bytes:
          Paragraph("STATUS", LABEL_STYLE),
          Paragraph("REPORT GENERATED", LABEL_STYLE)],
         [Paragraph(f"<b>{candidate['username']}</b>",
-                   _style(fontSize=13, fontName="Helvetica-Bold", textColor=DARK, leading=16)),
+                   _style(fontSize=12, fontName="Helvetica-Bold", textColor=DARK, leading=15)),
          Paragraph(session_ts or created,
-                   _style(fontSize=11, fontName="Helvetica", textColor=DARK, leading=14)),
+                   _style(fontSize=10, fontName="Helvetica", textColor=DARK, leading=13)),
          Paragraph(f"<b>{status}</b>",
-                   _style(fontSize=11, fontName="Helvetica-Bold", textColor=status_clr, leading=14)),
+                   _style(fontSize=10, fontName="Helvetica-Bold", textColor=status_clr, leading=13)),
          Paragraph(generated_at,
-                   _style(fontSize=11, fontName="Helvetica", textColor=DARK, leading=14))],
+                   _style(fontSize=10, fontName="Helvetica", textColor=DARK, leading=13))],
     ]
-    col_w = (W - 40*mm) / 4
+
+    # Calculate widths: Leave 32mm for the candidate photo tile
+    col_w = (W - 40*mm - 34*mm) / 4
     info_t = Table(info_data, colWidths=[col_w]*4, rowHeights=[14, 22])
     info_t.setStyle(TableStyle([
         ("BACKGROUND",    (0,0),(-1,-1), CARD_BG),
@@ -331,12 +335,43 @@ def generate_candidate_report(candidate: dict, detail: dict) -> bytes:
         ("LINEBEFORE",    (0,0),(0,-1),  3, ORANGE),
         ("LINEAFTER",     (-1,0),(-1,-1), 0.5, BORDER),
         ("LINEBELOW",     (0,0),(-1,0),  0.3, BORDER),
-        ("TOPPADDING",    (0,0),(-1,0),  6),
-        ("BOTTOMPADDING", (0,-1),(-1,-1), 8),
-        ("TOPPADDING",    (0,-1),(-1,-1), 6),
-        ("LEFTPADDING",   (0,0),(-1,-1), 10),
+        ("TOPPADDING",    (0,0),(-1,0),  5),
+        ("BOTTOMPADDING", (0,-1),(-1,-1), 6),
+        ("LEFTPADDING",   (0,0),(-1,-1), 8),
     ]))
-    story.append(info_t)
+
+    # Load candidate photo
+    photo_element = None
+    snap_b64 = detail.get("snapshot") or candidate.get("snapshot")
+    if snap_b64:
+        try:
+            img_bytes = base64.b64decode(snap_b64)
+            img_io = io.BytesIO(img_bytes)
+            photo_element = RLImage(img_io, width=30*mm, height=24*mm)
+        except Exception:
+            photo_element = Paragraph("[Photo Error]", SMALL_STYLE)
+    else:
+        photo_element = Paragraph("No Photo Captured", _style(fontSize=7.5, fontName="Helvetica", textColor=GREY, alignment=TA_CENTER))
+
+    # Photo Box container
+    photo_table = Table([[photo_element]], colWidths=[32*mm], rowHeights=[36])
+    photo_table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), CARD_BG),
+        ("BOX", (0,0), (-1,-1), 0.5, BORDER),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("TOPPADDING", (0,0), (-1,-1), 2),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 2),
+    ]))
+
+    # Header Card wrapper: Info Table (Left) + Snapshot Tile (Right)
+    header_block = Table([[info_t, photo_table]], colWidths=[W - 40*mm - 34*mm, 34*mm])
+    header_block.setStyle(TableStyle([
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("LEFTPADDING", (1,0), (1,0), 2*mm),
+    ]))
+    
+    story.append(header_block)
     story.append(Spacer(1, 6*mm))
 
     # ── Summary stats ─────────────────────────────────────────────────────────

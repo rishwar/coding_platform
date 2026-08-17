@@ -143,7 +143,30 @@ def init_db():
     _migrate_strip_interviewer_content()
     _migrate_add_templates()
     _migrate_fix_candidate_status()
+# Snapshot column migration for candidates
+    try:
+        conn = get_conn()
+        conn.execute("ALTER TABLE candidates ADD COLUMN snapshot TEXT DEFAULT NULL")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
+
+def save_candidate_snapshot(candidate_id: int, snapshot_b64: str):
+    """Saves candidate base64 snapshot to database."""
+    conn = get_conn()
+    conn.execute("UPDATE candidates SET snapshot=? WHERE id=?", (snapshot_b64, candidate_id))
+    conn.commit()
+    conn.close()
+
+
+def get_candidate_snapshot(candidate_id: int):
+    """Retrieves candidate base64 snapshot."""
+    conn = get_conn()
+    row = conn.execute("SELECT snapshot FROM candidates WHERE id=?", (candidate_id,)).fetchone()
+    conn.close()
+    return row["snapshot"] if row and row["snapshot"] else None
 
 
 def _migrate_fix_candidate_status():
@@ -1778,6 +1801,22 @@ def get_candidate_detail_full(candidate_id):
         "attempted_count": len(subs),
         "correct_count":   sum(1 for s in subs if s["best_correct"]),
         "session_started": session["started_at"] if session else None,
+    }
+# Also fetch snapshot
+    cand_row = conn.execute("SELECT snapshot FROM candidates WHERE id=?", (candidate_id,)).fetchone()
+    snapshot = cand_row["snapshot"] if cand_row and cand_row["snapshot"] else None
+    
+    # ... keep existing code ...
+    
+    conn.close()
+    return {
+        "attempted":       subs,
+        "not_attempted":   not_attempted,
+        "assigned_count":  len(assigned_ids),
+        "attempted_count": len(subs),
+        "correct_count":   sum(1 for s in subs if s["best_correct"]),
+        "session_started": session["started_at"] if session else None,
+        "snapshot":        snapshot,
     }
 
 
